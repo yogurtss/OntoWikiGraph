@@ -25,3 +25,41 @@ python -m kg_workbench.build \
 ```
 
 The async LLM client reads `OPENAI_API_KEY` and `OPENAI_BASE_URL` by default.
+
+## Frontend Usage
+
+The repository also includes a frontend KG viewer under [frontend](/home/lukashe/data/projects/OntoWikiGraph/frontend).
+
+Install and start the frontend:
+
+```bash
+conda run -n graphgen npm install --prefix frontend
+conda run -n graphgen npm run dev --prefix frontend
+```
+
+Or run directly inside `frontend/`:
+
+```bash
+npm install
+npm run dev
+```
+
+Open the local Vite URL shown in the terminal, usually `http://localhost:5173`.
+
+### View Real Graph Data
+
+The frontend looks for exported graph files in:
+
+- `frontend/public/kg/index.json`
+- `frontend/public/kg/<document_id>/graph.json`
+
+If these files do not exist yet, the UI falls back to built-in mock data.
+
+To generate real graph data from the KG pipeline and publish it into the frontend:
+
+```bash
+conda run -n graphgen python -m kg_workbench.build --config examples/kg_workbench/manifest_tree_kg.yaml
+conda run -n graphgen python -m kg_workbench.frontend_data --working-dir cache/kg_workbench --frontend-dir frontend
+```
+
+After that, restart or refresh the frontend and it will load the exported graphs.
