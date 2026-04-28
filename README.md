@@ -63,15 +63,3 @@ conda run -n graphgen python -m kg_workbench.frontend_data --working-dir cache/k
 ```
 
 After that, restart or refresh the frontend and it will load the exported graphs.
-
-## Repository Skill
-
-This repository includes a reusable Codex skill at [skills/doc-sync-and-push-main/SKILL.md](/home/lukashe/data/projects/OntoWikiGraph/skills/doc-sync-and-push-main/SKILL.md).
-
-Use it when you want Codex to:
-
-- inspect the current code changes
-- update `docs/` for algorithm or pipeline changes
-- update the root `README.md` for frontend or user-visible feature changes
-- commit the synchronized changes
-- push them to `origin/main`

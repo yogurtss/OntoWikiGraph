@@ -1,7 +1,0 @@
-interface:
-  display_name: "Doc Sync Push Main"
-  short_description: "Sync docs, then commit and push main"
-  default_prompt: "Use $doc-sync-and-push-main to inspect my OntoWikiGraph changes, update docs or README as needed, then commit and push to main."
-
-policy:
-  allow_implicit_invocation: true
