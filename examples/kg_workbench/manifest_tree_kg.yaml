@@ -1,0 +1,17 @@
+input: examples/kg_workbench/manifest.json
+working_dir: cache/kg_workbench
+graph_backend: kuzu
+export: json
+
+tree:
+  split_text_nodes: false
+
+extraction:
+  extractor: heuristic
+
+llm:
+  model: gpt-4o-mini
+  base_url: null
+  api_key: null
+  temperature: 0.0
+

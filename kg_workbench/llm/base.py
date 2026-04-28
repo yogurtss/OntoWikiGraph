@@ -1,0 +1,20 @@
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+
+@dataclass
+class LLMConfig:
+    model: str
+    api_key: str | None = None
+    base_url: str | None = None
+    temperature: float = 0.0
+    timeout: float = 120.0
+
+
+class BaseLLMClient(ABC):
+    @abstractmethod
+    async def generate(self, prompt: str) -> str:
+        raise NotImplementedError
+

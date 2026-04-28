@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ontowikigraph"
+version = "0.1.0"
+description = "Ontology-grounded Markdown-to-KG workbench with future entity wiki layers."
+requires-python = ">=3.10"
+dependencies = [
+  "aiohttp",
+  "pyyaml",
+  "kuzu",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["kg_workbench*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
