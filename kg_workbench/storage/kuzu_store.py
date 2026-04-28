@@ -19,7 +19,8 @@ class KuzuGraphStore:
             raise ImportError("Kuzu is not installed. Install it with `pip install kuzu`.")
         self.db_path = Path(db_path)
         self.db_path.mkdir(parents=True, exist_ok=True)
-        self.db = kuzu.Database(str(self.db_path))
+        self.database_file = self.db_path / "database.kuzu"
+        self.db = kuzu.Database(str(self.database_file))
         self.conn = kuzu.Connection(self.db)
         self._init_schema()
 
@@ -80,4 +81,3 @@ class KuzuGraphStore:
             "stored_node_count": int(node_result.get_next()[0]),
             "stored_edge_count": int(edge_result.get_next()[0]),
         }
-

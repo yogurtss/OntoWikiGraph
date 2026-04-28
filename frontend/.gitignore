@@ -1,0 +1,8 @@
+node_modules/
+dist/
+public/kg/*
+!public/kg/.gitignore
+!public/kg/README.md
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
