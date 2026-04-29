@@ -28,6 +28,11 @@ def main() -> None:
         action="store_true",
         help="Split long text nodes instead of preserving parsed markdown units.",
     )
+    parser.add_argument(
+        "--group-text-between-non-text",
+        action="store_true",
+        help="Merge contiguous text into one chunk between non-text components (title/image/table).",
+    )
     args = parser.parse_args()
 
     if args.config:
@@ -47,6 +52,8 @@ def main() -> None:
         config.export = args.export
     if args.split_text_nodes:
         config.split_text_nodes = True
+    if args.group_text_between_non_text:
+        config.group_text_between_non_text = True
     if args.extractor is not None:
         config.extractor = args.extractor
     if args.llm_model is not None:

@@ -60,3 +60,33 @@ def test_markdown_tree_preserves_sections_and_mm_components(tmp_path: Path):
     assert any(chunk.node_type == "image" for chunk in chunks)
     assert any(chunk.node_type == "table" for chunk in chunks)
 
+
+def test_chunk_tree_can_group_text_between_non_text(tmp_path: Path):
+    md_path = tmp_path / "demo.md"
+    md_path.write_text(
+        "\n".join(
+            [
+                "# Root Section",
+                "",
+                "Paragraph A.",
+                "",
+                "Paragraph B.",
+                "",
+                "![demo](figures/demo.png)",
+                "",
+                "Paragraph C.",
+                "",
+                "Paragraph D.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    doc = read_markdown(str(md_path))
+    tree = construct_tree(doc, analyze_markdown_structure(doc))
+
+    grouped = chunk_tree_nodes(tree, group_text_between_non_text=True)
+    text_chunks = [chunk for chunk in grouped if chunk.node_type == "text"]
+
+    assert len(text_chunks) == 2
+    assert text_chunks[0].content == "Paragraph A.\n\nParagraph B."
+    assert text_chunks[1].content == "Paragraph C.\n\nParagraph D."

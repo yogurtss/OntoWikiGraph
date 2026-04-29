@@ -30,6 +30,7 @@ def build_document_kg(
     graph_backend: str = "kuzu",
     export: str = "json",
     split_text_nodes: bool = False,
+    group_text_between_non_text: bool = False,
     extractor: str = "heuristic",
     llm_model: str | None = None,
     llm_api_key: str | None = None,
@@ -41,7 +42,11 @@ def build_document_kg(
 
     components = analyze_markdown_structure(document)
     tree = construct_tree(document, components)
-    chunks = chunk_tree_nodes(tree, split_text_nodes=split_text_nodes)
+    chunks = chunk_tree_nodes(
+        tree,
+        split_text_nodes=split_text_nodes,
+        group_text_between_non_text=group_text_between_non_text,
+    )
 
     structural_nodes, structural_edges = add_structural_kg(document, tree)
     if extractor == "heuristic":
@@ -112,6 +117,7 @@ def build_from_input(
     graph_backend: str = "kuzu",
     export: str = "json",
     split_text_nodes: bool = False,
+    group_text_between_non_text: bool = False,
     extractor: str = "heuristic",
     llm_model: str | None = None,
     llm_api_key: str | None = None,
@@ -126,6 +132,7 @@ def build_from_input(
             graph_backend=graph_backend,
             export=export,
             split_text_nodes=split_text_nodes,
+            group_text_between_non_text=group_text_between_non_text,
             extractor=extractor,
             llm_model=llm_model,
             llm_api_key=llm_api_key,
@@ -156,6 +163,7 @@ def build_from_config(config: WorkbenchConfig) -> list[dict[str, Any]]:
         graph_backend=config.graph_backend,
         export=config.export,
         split_text_nodes=config.split_text_nodes,
+        group_text_between_non_text=config.group_text_between_non_text,
         extractor=config.extractor,
         llm_model=config.llm_model,
         llm_api_key=config.llm_api_key,

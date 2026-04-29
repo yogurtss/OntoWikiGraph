@@ -14,6 +14,7 @@ class WorkbenchConfig:
     graph_backend: str = "kuzu"
     export: str = "json"
     split_text_nodes: bool = False
+    group_text_between_non_text: bool = False
     extractor: str = "heuristic"
     llm_model: str | None = None
     llm_api_key: str | None = None
@@ -48,10 +49,17 @@ def load_config(path: str | Path) -> WorkbenchConfig:
         graph_backend=str(data.get("graph_backend", "kuzu")),
         export=str(data.get("export", "json")),
         split_text_nodes=bool(_dig(data, "tree", "split_text_nodes", default=data.get("split_text_nodes", False))),
+        group_text_between_non_text=bool(
+            _dig(
+                data,
+                "tree",
+                "group_text_between_non_text",
+                default=data.get("group_text_between_non_text", False),
+            )
+        ),
         extractor=str(_dig(data, "extraction", "extractor", default=data.get("extractor", "heuristic"))),
         llm_model=_dig(data, "llm", "model", default=data.get("llm_model")),
         llm_api_key=_dig(data, "llm", "api_key", default=data.get("llm_api_key")),
         llm_base_url=_dig(data, "llm", "base_url", default=data.get("llm_base_url")),
         llm_temperature=float(_dig(data, "llm", "temperature", default=data.get("llm_temperature", 0.0))),
     )
-
