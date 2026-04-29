@@ -92,3 +92,34 @@ def test_chunk_tree_can_group_text_between_non_text(tmp_path: Path):
     assert len(text_chunks) == 2
     assert text_chunks[0].content == "Paragraph A.\n\nParagraph B."
     assert text_chunks[1].content == "Paragraph C.\n\nParagraph D."
+
+
+def test_grouped_text_chunk_does_not_cross_sections(tmp_path: Path):
+    md_path = tmp_path / "sections.md"
+    md_path.write_text(
+        "\n".join(
+            [
+                "# Section A",
+                "",
+                "A1.",
+                "",
+                "A2.",
+                "",
+                "## Section B",
+                "",
+                "B1.",
+                "",
+                "B2.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    doc = read_markdown(str(md_path))
+    components = analyze_markdown_structure(doc)
+    tree = construct_tree(doc, components)
+    grouped = chunk_tree_nodes(tree, group_text_between_non_text=True)
+
+    text_chunks = [chunk.content for chunk in grouped if chunk.node_type == "text"]
+
+    assert text_chunks == ["A1.\n\nA2.", "B1.\n\nB2."]
