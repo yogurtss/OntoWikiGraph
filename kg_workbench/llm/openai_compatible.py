@@ -18,11 +18,19 @@ class OpenAICompatibleClient(BaseLLMClient):
         if not self.api_key:
             raise ValueError("Missing LLM API key. Set OPENAI_API_KEY or pass --llm-api-key.")
 
-    async def generate(self, prompt: str) -> str:
+    async def generate(self, prompt: str, *, image_data_url: str | None = None) -> str:
+        content: str | list[dict[str, Any]]
+        if image_data_url:
+            content = [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": image_data_url}},
+            ]
+        else:
+            content = prompt
         payload: dict[str, Any] = {
             "model": self.config.model,
             "temperature": self.config.temperature,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": content}],
         }
         timeout = aiohttp.ClientTimeout(total=self.config.timeout)
         headers = {
@@ -40,4 +48,3 @@ class OpenAICompatibleClient(BaseLLMClient):
                     raise RuntimeError(f"LLM request failed ({response.status}): {text}")
                 data = await response.json()
         return str(data["choices"][0]["message"]["content"])
-

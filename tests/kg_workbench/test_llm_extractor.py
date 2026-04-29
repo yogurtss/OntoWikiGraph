@@ -6,7 +6,11 @@ from kg_workbench.tree.chunker import TreeChunk
 
 
 class FakeLLM(BaseLLMClient):
-    async def generate(self, prompt: str) -> str:
+    def __init__(self):
+        self.last_image_data_url = None
+
+    async def generate(self, prompt: str, *, image_data_url: str | None = None) -> str:
+        self.last_image_data_url = image_data_url
         return """
         {
           "nodes": [
@@ -52,13 +56,43 @@ def test_llm_extractor_accepts_async_client_without_network():
         )
     ]
 
+    llm = FakeLLM()
     nodes, edges = extract_candidates_with_llm(
         doc,
         chunks,
         ontology=default_ontology(),
-        llm_client=FakeLLM(),
+        llm_client=llm,
     )
 
     assert {node.name for node in nodes} == {"LPDDR5X", "8533 MT/s"}
     assert any(edge.relation_type == "has_bandwidth" for edge in edges)
+    assert llm.last_image_data_url is None
 
+
+def test_llm_extractor_encodes_image_for_image_chunks(tmp_path):
+    image_path = tmp_path / "demo.png"
+    image_path.write_bytes(b"fake-png-bytes")
+    doc = DocumentInput("demo", "/tmp/demo.md", "", "doc-demo")
+    chunks = [
+        TreeChunk(
+            chunk_id="chunk-1",
+            content="Figure 1",
+            node_type="image",
+            node_id="n1",
+            parent_id="root",
+            tree_path="root/figure",
+            level=1,
+            metadata={"img_path": str(image_path)},
+        )
+    ]
+
+    llm = FakeLLM()
+    extract_candidates_with_llm(
+        doc,
+        chunks,
+        ontology=default_ontology(),
+        llm_client=llm,
+    )
+
+    assert llm.last_image_data_url is not None
+    assert llm.last_image_data_url.startswith("data:image/png;base64,")
