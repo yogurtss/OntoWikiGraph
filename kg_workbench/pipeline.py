@@ -40,16 +40,23 @@ def build_document_kg(
     working_dir = Path(working_dir)
     ontology = default_ontology()
 
+    print(f"[pipeline] start document={document.document_name} ({document.document_id})")
     components = analyze_markdown_structure(document)
+    print(f"[pipeline] markdown analysis done: components={len(components)}")
     tree = construct_tree(document, components)
+    print("[pipeline] tree construction done")
     chunks = chunk_tree_nodes(
         tree,
         split_text_nodes=split_text_nodes,
         split_text_to_paragraphs=split_text_to_paragraphs,
     )
 
+    print(f"[pipeline] chunking done: chunks={len(chunks)}")
+
     structural_nodes, structural_edges = add_structural_kg(document, tree)
+    print(f"[pipeline] structural extraction done: nodes={len(structural_nodes)}, edges={len(structural_edges)}")
     if extractor == "heuristic":
+        print("[pipeline] semantic extraction mode=heuristic")
         extracted_nodes, extracted_edges = extract_candidates(document, chunks)
     elif extractor == "llm":
         if not llm_model:
@@ -62,6 +69,7 @@ def build_document_kg(
                 temperature=llm_temperature,
             )
         )
+        print(f"[pipeline] semantic extraction mode=llm model={llm_model}")
         extracted_nodes, extracted_edges = extract_candidates_with_llm(
             document,
             chunks,
@@ -70,11 +78,14 @@ def build_document_kg(
         )
     else:
         raise ValueError("extractor must be 'heuristic' or 'llm'")
+    print(f"[pipeline] semantic extraction done: nodes={len(extracted_nodes)}, edges={len(extracted_edges)}")
     nodes, edges = normalize_and_cluster(
         structural_nodes + extracted_nodes,
         structural_edges + extracted_edges,
     )
+    print(f"[pipeline] normalization done: nodes={len(nodes)}, edges={len(edges)}")
     valid_nodes, valid_edges, review = validate_graph(nodes, edges, ontology)
+    print(f"[pipeline] validation done: valid_nodes={len(valid_nodes)}, valid_edges={len(valid_edges)}, review_nodes={len(review.nodes)}, review_edges={len(review.edges)}")
 
     document_dir = _document_dir(working_dir, document)
     storage_stats: dict[str, Any] = {}
@@ -82,6 +93,7 @@ def build_document_kg(
         raise ValueError("v1 supports only graph_backend='kuzu'")
     store = KuzuGraphStore(document_dir / "graph_kuzu")
     storage_stats = store.persist(valid_nodes, valid_edges)
+    print(f"[pipeline] kuzu persistence done: stats={storage_stats}")
 
     if export != "json":
         raise ValueError("v1 supports only export='json'")
@@ -97,6 +109,7 @@ def build_document_kg(
         storage_stats=storage_stats,
     )
     payload["export_path"] = str(export_path)
+    print(f"[pipeline] export done: path={export_path}")
     return payload
 
 
