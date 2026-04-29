@@ -13,7 +13,7 @@ graph_backend: kuzu
 export: json
 tree:
   split_text_nodes: true
-  group_text_between_non_text: true
+  split_text_to_paragraphs: true
 extraction:
   extractor: llm
 llm:
@@ -29,7 +29,7 @@ llm:
     assert config.input_path == "demo.md"
     assert config.working_dir == "cache/custom"
     assert config.split_text_nodes is True
-    assert config.group_text_between_non_text is True
+    assert config.split_text_to_paragraphs is True
     assert config.extractor == "llm"
     assert config.llm_model == "gpt-test"
     assert config.llm_base_url == "http://localhost:8000/v1"

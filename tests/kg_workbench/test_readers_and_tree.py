@@ -63,7 +63,7 @@ def test_markdown_tree_preserves_sections_and_mm_components(tmp_path: Path):
     assert image_component.metadata["img_path"] == str((md_path.parent / "figures/demo.png").resolve())
 
 
-def test_chunk_tree_can_group_text_between_non_text(tmp_path: Path):
+def test_chunk_tree_can_split_text_to_paragraphs(tmp_path: Path):
     md_path = tmp_path / "demo.md"
     md_path.write_text(
         "\n".join(
@@ -86,15 +86,14 @@ def test_chunk_tree_can_group_text_between_non_text(tmp_path: Path):
     doc = read_markdown(str(md_path))
     tree = construct_tree(doc, analyze_markdown_structure(doc))
 
-    grouped = chunk_tree_nodes(tree, group_text_between_non_text=True)
+    grouped = chunk_tree_nodes(tree, split_text_to_paragraphs=True)
     text_chunks = [chunk for chunk in grouped if chunk.node_type == "text"]
 
-    assert len(text_chunks) == 2
-    assert text_chunks[0].content == "Paragraph A.\n\nParagraph B."
-    assert text_chunks[1].content == "Paragraph C.\n\nParagraph D."
+    assert len(text_chunks) == 4
+    assert [chunk.content for chunk in text_chunks] == ["Paragraph A.", "Paragraph B.", "Paragraph C.", "Paragraph D."]
 
 
-def test_grouped_text_chunk_does_not_cross_sections(tmp_path: Path):
+def test_split_text_to_paragraphs_does_not_cross_sections(tmp_path: Path):
     md_path = tmp_path / "sections.md"
     md_path.write_text(
         "\n".join(
@@ -118,8 +117,8 @@ def test_grouped_text_chunk_does_not_cross_sections(tmp_path: Path):
     doc = read_markdown(str(md_path))
     components = analyze_markdown_structure(doc)
     tree = construct_tree(doc, components)
-    grouped = chunk_tree_nodes(tree, group_text_between_non_text=True)
+    grouped = chunk_tree_nodes(tree, split_text_to_paragraphs=True)
 
     text_chunks = [chunk.content for chunk in grouped if chunk.node_type == "text"]
 
-    assert text_chunks == ["A1.\n\nA2.", "B1.\n\nB2."]
+    assert text_chunks == ["A1.", "A2.", "B1.", "B2."]

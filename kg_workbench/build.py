@@ -29,9 +29,9 @@ def main() -> None:
         help="Split long text nodes instead of preserving parsed markdown units.",
     )
     parser.add_argument(
-        "--group-text-between-non-text",
+        "--split-text-to-paragraphs",
         action="store_true",
-        help="Merge contiguous text into one chunk between non-text components (title/image/table).",
+        help="Split each text component into natural paragraphs (separated by blank lines).",
     )
     args = parser.parse_args()
 
@@ -52,8 +52,8 @@ def main() -> None:
         config.export = args.export
     if args.split_text_nodes:
         config.split_text_nodes = True
-    if args.group_text_between_non_text:
-        config.group_text_between_non_text = True
+    if args.split_text_to_paragraphs:
+        config.split_text_to_paragraphs = True
     if args.extractor is not None:
         config.extractor = args.extractor
     if args.llm_model is not None:
