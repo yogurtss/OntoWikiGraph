@@ -15,6 +15,9 @@ from kg_workbench.tree.chunker import TreeChunk
 from kg_workbench.utils import compact_text, normalize_key, stable_id
 
 
+LLM_POST_BATCH_SIZE = 16
+
+
 def _strip_json_fence(text: str) -> str:
     stripped = text.strip()
     fence = re.match(r"^```(?:json)?\s*(.*?)\s*```$", stripped, re.S)
@@ -112,9 +115,15 @@ async def extract_llm_candidates(
     nodes: list[KGNode] = []
     edges: list[KGEdge] = []
 
-    for chunk in chunks:
+    async def _extract_one(chunk: TreeChunk, chunk_index: int, total_chunks: int) -> tuple[list[KGNode], list[KGEdge]]:
         if not compact_text(chunk.content) and chunk.node_type == "text":
-            continue
+            print(
+                f"[llm-extract] chunk {chunk_index}/{total_chunks} skipped: empty text chunk "
+                f"(id={chunk.chunk_id}, path={chunk.tree_path})"
+            )
+            return [], []
+
+        print(f"[llm-extract] chunk {chunk_index}/{total_chunks} start (id={chunk.chunk_id}, type={chunk.node_type})")
         response = await llm_client.generate(
             _prompt_for_chunk(chunk, ontology),
             image_data_url=_image_data_url_from_chunk(chunk),
@@ -124,6 +133,9 @@ async def extract_llm_candidates(
         raw_edges = data.get("edges", [])
         if not isinstance(raw_nodes, list) or not isinstance(raw_edges, list):
             raise ValueError("LLM response fields 'nodes' and 'edges' must be lists")
+
+        chunk_nodes: list[KGNode] = []
+        chunk_edges: list[KGEdge] = []
 
         name_to_id: dict[str, str] = {}
         structural_id = f"tree:{chunk.node_id}"
@@ -137,7 +149,7 @@ async def extract_llm_candidates(
             node_id = stable_id(doc.document_id, entity_type, normalize_key(name), prefix="ent-")
             name_to_id[name] = node_id
             evidence = compact_text(str(raw_node.get("evidence_span", "")))
-            nodes.append(
+            chunk_nodes.append(
                 KGNode(
                     id=node_id,
                     name=name,
@@ -153,7 +165,7 @@ async def extract_llm_candidates(
                     metadata={"source_node_id": chunk.node_id, **chunk.metadata},
                 )
             )
-            edges.append(
+            chunk_edges.append(
                 KGEdge(
                     id=stable_id(doc.document_id, structural_id, node_id, "contains", prefix="edge-"),
                     src=structural_id,
@@ -182,7 +194,7 @@ async def extract_llm_candidates(
                 continue
             relation_type = compact_text(str(raw_edge.get("relation_type", "")))
             evidence = compact_text(str(raw_edge.get("evidence_span", "")))
-            edges.append(
+            chunk_edges.append(
                 KGEdge(
                     id=stable_id(doc.document_id, src_id, tgt_id, relation_type, chunk.chunk_id, prefix="edge-"),
                     src=src_id,
@@ -199,6 +211,32 @@ async def extract_llm_candidates(
                     metadata={"source_chunk_id": chunk.chunk_id},
                 )
             )
+
+        node_preview = ", ".join(node.name for node in chunk_nodes[:3])
+        edge_preview = ", ".join(edge.relation_type for edge in chunk_edges[:3])
+        print(
+            f"[llm-extract] chunk {chunk_index}/{total_chunks} done: "
+            f"nodes={len(chunk_nodes)} ({node_preview or '-'}) "
+            f"edges={len(chunk_edges)} ({edge_preview or '-'})"
+        )
+        return chunk_nodes, chunk_edges
+
+    total_chunks = len(chunks)
+    print(f"[llm-extract] start: total_chunks={total_chunks}, batch_size={LLM_POST_BATCH_SIZE}")
+    for batch_start in range(0, total_chunks, LLM_POST_BATCH_SIZE):
+        batch_end = min(total_chunks, batch_start + LLM_POST_BATCH_SIZE)
+        print(f"[llm-extract] posting batch {batch_start + 1}-{batch_end}/{total_chunks}")
+        batch_results = await asyncio.gather(
+            *[
+                _extract_one(chunk, chunk_index, total_chunks)
+                for chunk_index, chunk in enumerate(chunks[batch_start:batch_end], start=batch_start + 1)
+            ]
+        )
+        for batch_nodes, batch_edges in batch_results:
+            nodes.extend(batch_nodes)
+            edges.extend(batch_edges)
+
+    print(f"[llm-extract] finished: total_nodes={len(nodes)}, total_edges={len(edges)}")
 
     return nodes, edges
 
