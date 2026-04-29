@@ -59,6 +59,8 @@ def test_markdown_tree_preserves_sections_and_mm_components(tmp_path: Path):
     assert tree.children[0].path == "root/Root-Section"
     assert any(chunk.node_type == "image" for chunk in chunks)
     assert any(chunk.node_type == "table" for chunk in chunks)
+    image_component = next(component for component in components if component.type == "image")
+    assert image_component.metadata["img_path"] == str((md_path.parent / "figures/demo.png").resolve())
 
 
 def test_chunk_tree_can_group_text_between_non_text(tmp_path: Path):
