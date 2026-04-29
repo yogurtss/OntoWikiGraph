@@ -70,12 +70,12 @@ tree:
 
 extraction:
   extractor: heuristic
+  batch_size: 16
 
 llm:
   model: gpt-4o-mini
   base_url: null
   api_key: null
-  temperature: 0.0
 ```
 
 Supported values in the current v1 implementation:
@@ -86,9 +86,14 @@ Supported values in the current v1 implementation:
 - `export`: currently only `json`.
 - `tree.split_text_nodes`: whether long text nodes are split into overlapping
   chunks before semantic extraction.
+- `tree.split_text_to_paragraphs`: whether each text node is first split by
+  blank-line paragraph boundaries before optional chunking.
 - `extraction.extractor`: `heuristic` for offline extraction or `llm` for
   OpenAI-compatible extraction.
-- `llm.*`: model and client settings used only by the LLM extractor.
+- `extraction.batch_size`: number of chunk requests posted concurrently in each
+  LLM batch.
+- `llm.*`: model and client settings used only by the LLM extractor;
+  `llm.temperature` is optional and omitted from requests when unset.
 
 ## Input Loading
 
@@ -194,35 +199,32 @@ This mode is offline, deterministic, and the default.
 ### LLM Extraction
 
 `extract_candidates_with_llm()` sends each chunk to an OpenAI-compatible client
-with the default ontology embedded in the prompt.
+with the default ontology embedded in stage-specific prompts.
 
-The model must return strict JSON:
+The LLM path now uses a non-JSON tuple-delimiter protocol inspired by the
+grounded extraction flow in `EvidenceGraphGen`:
 
-```json
-{
-  "nodes": [
-    {
-      "name": "...",
-      "entity_type": "...",
-      "description": "...",
-      "evidence_span": "..."
-    }
-  ],
-  "edges": [
-    {
-      "source": "...",
-      "target": "...",
-      "relation_type": "...",
-      "description": "...",
-      "evidence_span": "...",
-      "confidence": 0.0
-    }
-  ]
-}
-```
+- entity records:
+  `("entity"<|>name<|>entity_type<|>description<|>evidence_span)`
+- relationship records:
+  `("relationship"<|>source<|>target<|>relation_type<|>description<|>evidence_span<|>confidence)`
+- record delimiter: `##`
+- completion delimiter: `<|COMPLETE|>`
 
-The extractor maps returned names to stable entity ids, adds `contains` edges
-from the source tree node, and preserves chunk evidence and metadata.
+Extraction runs in two stages per chunk:
+
+1. entity extraction with grounded evidence checks
+2. relationship extraction using only the validated entity list from stage 1
+
+For text chunks, evidence spans must be present and supported by the source
+text. Image and table chunks preserve multimodal grounding support, but the
+extractor still requires explicit evidence for relationships.
+
+Chunk requests are posted in configurable async batches. Single chunk failures,
+parse failures, or malformed records are logged and skipped without aborting the
+whole document build. Validated entities are mapped to stable ids, `contains`
+edges are added from the source tree node, and chunk evidence plus metadata are
+preserved through export.
 
 ## Normalization and Clustering
 

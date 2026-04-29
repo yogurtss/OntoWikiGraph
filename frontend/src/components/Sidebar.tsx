@@ -7,10 +7,15 @@ interface SidebarProps {
   graphs: KGGraph[];
   activeGraph: KGGraph;
   filters: GraphFilters;
-  source: "export" | "mock";
+  source: "export" | "mock" | "local";
   sourceMessage?: string;
+  localIndexPath: string;
+  localImportError?: string;
   onGraphChange: (documentId: string) => void;
   onFiltersChange: (filters: GraphFilters) => void;
+  onLocalIndexPathChange: (value: string) => void;
+  onLoadLocalIndex: () => void;
+  onClearLocalIndex: () => void;
 }
 
 function toggleSetValue(values: Set<string>, value: string): Set<string> {
@@ -33,8 +38,13 @@ export function Sidebar({
   filters,
   source,
   sourceMessage,
+  localIndexPath,
+  localImportError,
   onGraphChange,
   onFiltersChange,
+  onLocalIndexPathChange,
+  onLoadLocalIndex,
+  onClearLocalIndex,
 }: SidebarProps) {
   const entityTypes = entityTypesForGraph(activeGraph);
   const relationTypes = relationTypesForGraph(activeGraph);
@@ -53,9 +63,33 @@ export function Sidebar({
       </div>
 
       <div className={`source-banner ${source === "mock" ? "is-mock" : "is-export"}`}>
-        <span>{source === "mock" ? "Mock 数据" : "导出数据"}</span>
+        <span>{source === "mock" ? "Mock 数据" : source === "local" ? "本地导入" : "导出数据"}</span>
         <small>{source === "mock" ? "未发现 /kg/index.json，已启用演示数据" : sourceMessage}</small>
       </div>
+
+      <section className="panel">
+        <div className="panel-title">
+          <Search size={16} />
+          <span>本地 index.json</span>
+        </div>
+        <div className="local-import">
+          <input
+            onChange={(event) => onLocalIndexPathChange(event.target.value)}
+            placeholder="/home/.../index.json"
+            type="text"
+            value={localIndexPath}
+          />
+          <div className="local-import-actions">
+            <button onClick={onLoadLocalIndex} type="button">
+              导入
+            </button>
+            <button className="secondary" onClick={onClearLocalIndex} type="button">
+              默认源
+            </button>
+          </div>
+          {localImportError ? <small className="local-import-error">{localImportError}</small> : null}
+        </div>
+      </section>
 
       <section className="panel">
         <div className="panel-title">

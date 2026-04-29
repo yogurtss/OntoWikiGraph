@@ -9,10 +9,9 @@ tree:
 extraction:
   # Use "llm" when OPENAI_API_KEY or llm.api_key is available.
   extractor: heuristic
+  batch_size: 16
 
 llm:
   model: gpt-4o-mini
   base_url: null
   api_key: null
-  temperature: 0.0
-

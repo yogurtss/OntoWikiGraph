@@ -93,8 +93,15 @@ export interface SelectedGraphItem {
   data: Record<string, unknown>;
 }
 
+export interface NodeSearchMatch {
+  id: string;
+  name: string;
+  entityType: string;
+  treePath: string;
+}
+
 export interface LoadedGraphs {
   graphs: KGGraph[];
-  source: "export" | "mock";
+  source: "export" | "mock" | "local";
   message?: string;
 }

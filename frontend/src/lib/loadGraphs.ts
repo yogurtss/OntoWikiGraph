@@ -13,6 +13,15 @@ type IndexEntry =
     };
 
 type GraphIndex = Record<string, IndexEntry> | IndexEntry[];
+interface LocalIndexResponse {
+  index: GraphIndex;
+  index_path: string;
+  graph_count: number;
+}
+
+interface LoadGraphsOptions {
+  localIndexPath?: string;
+}
 
 function isGraph(value: unknown): value is KGGraph {
   const graph = value as KGGraph;
@@ -80,29 +89,69 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function loadGraphs(): Promise<LoadedGraphs> {
+async function postJson<T>(url: string, payload: Record<string, unknown>): Promise<T> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    let parsedError = "";
+    try {
+      const parsed = JSON.parse(text) as { error?: string };
+      parsedError = parsed.error ?? "";
+    } catch {
+      // Fall back to the raw response text below.
+    }
+    throw new Error(parsedError || text || `${response.status} ${response.statusText}`);
+  }
+  return (await response.json()) as T;
+}
+
+async function loadGraphsFromIndex(index: GraphIndex, source: LoadedGraphs["source"], message: string): Promise<LoadedGraphs> {
+  const entries = normalizeIndex(index);
+  const graphs = await Promise.all(
+    entries.map(async ([name, entry]) => {
+      const graph = await fetchJson<KGGraph>(graphUrlForEntry(name, entry));
+      if (!isGraph(graph)) {
+        throw new Error(`Invalid graph payload for ${name}`);
+      }
+      return normalizeGraph(graph);
+    }),
+  );
+
+  if (!graphs.length) {
+    throw new Error("No graphs available from the selected index.");
+  }
+
+  return {
+    graphs,
+    source,
+    message,
+  };
+}
+
+export async function loadGraphs(options?: LoadGraphsOptions): Promise<LoadedGraphs> {
+  const localIndexPath = options?.localIndexPath?.trim();
+  if (localIndexPath) {
+    const response = await postJson<LocalIndexResponse>("/api/local-index", {
+      index_path: localIndexPath,
+    });
+    return loadGraphsFromIndex(
+      response.index,
+      "local",
+      `Loaded ${response.graph_count} local graph${response.graph_count > 1 ? "s" : ""} from ${response.index_path}.`,
+    );
+  }
+
   try {
     const index = await fetchJson<GraphIndex>("/kg/index.json");
-    const entries = normalizeIndex(index);
-    const graphs = await Promise.all(
-      entries.map(async ([name, entry]) => {
-        const graph = await fetchJson<KGGraph>(graphUrlForEntry(name, entry));
-        if (!isGraph(graph)) {
-          throw new Error(`Invalid graph payload for ${name}`);
-        }
-        return normalizeGraph(graph);
-      }),
-    );
-
-    if (!graphs.length) {
-      throw new Error("No graphs listed in /kg/index.json");
-    }
-
-    return {
-      graphs,
-      source: "export",
-      message: `Loaded ${graphs.length} exported graph${graphs.length > 1 ? "s" : ""}.`,
-    };
+    const graphCount = normalizeIndex(index).length;
+    return loadGraphsFromIndex(index, "export", `Loaded ${graphCount} exported graph${graphCount > 1 ? "s" : ""}.`);
   } catch (error) {
     return {
       graphs: mockGraphs.map(normalizeGraph),

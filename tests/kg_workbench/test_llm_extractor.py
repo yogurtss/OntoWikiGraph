@@ -8,37 +8,28 @@ from kg_workbench.tree.chunker import TreeChunk
 class FakeLLM(BaseLLMClient):
     def __init__(self):
         self.last_image_data_url = None
+        self.calls: list[str] = []
 
     async def generate(self, prompt: str, *, image_data_url: str | None = None) -> str:
         self.last_image_data_url = image_data_url
+        self.calls.append(prompt)
+        if "Stage: entity extraction" in prompt:
+            if "BROKEN ENTITY" in prompt:
+                raise RuntimeError("entity boom")
+            if "BAD EVIDENCE" in prompt:
+                return """
+("entity"<|>"Ghost Metric"<|>"performance_metric"<|>"Should be rejected"<|>"not in chunk")<|COMPLETE|>
+"""
+            return """
+("entity"<|>"LPDDR5X"<|>"memory_product"<|>"A memory product"<|>"LPDDR5X supports 8533 MT/s")##
+("entity"<|>"8533 MT/s"<|>"performance_metric"<|>"A data rate"<|>"8533 MT/s")<|COMPLETE|>
+"""
+
+        if "BROKEN RELATION" in prompt:
+            raise RuntimeError("relation boom")
         return """
-        {
-          "nodes": [
-            {
-              "name": "LPDDR5X",
-              "entity_type": "memory_product",
-              "description": "A memory product",
-              "evidence_span": "LPDDR5X supports 8533 MT/s"
-            },
-            {
-              "name": "8533 MT/s",
-              "entity_type": "performance_metric",
-              "description": "A data rate",
-              "evidence_span": "8533 MT/s"
-            }
-          ],
-          "edges": [
-            {
-              "source": "LPDDR5X",
-              "target": "8533 MT/s",
-              "relation_type": "has_bandwidth",
-              "description": "LPDDR5X has this data rate",
-              "evidence_span": "LPDDR5X supports 8533 MT/s",
-              "confidence": 0.98
-            }
-          ]
-        }
-        """
+("relationship"<|>"LPDDR5X"<|>"8533 MT/s"<|>"has_bandwidth"<|>"LPDDR5X has this data rate"<|>"LPDDR5X supports 8533 MT/s"<|>0.98)<|COMPLETE|>
+"""
 
 
 def test_llm_extractor_accepts_async_client_without_network():
@@ -67,6 +58,8 @@ def test_llm_extractor_accepts_async_client_without_network():
     assert {node.name for node in nodes} == {"LPDDR5X", "8533 MT/s"}
     assert any(edge.relation_type == "has_bandwidth" for edge in edges)
     assert llm.last_image_data_url is None
+    assert any("Stage: entity extraction" in prompt for prompt in llm.calls)
+    assert any("Stage: relationship extraction" in prompt for prompt in llm.calls)
 
 
 def test_llm_extractor_encodes_image_for_image_chunks(tmp_path):
@@ -96,3 +89,92 @@ def test_llm_extractor_encodes_image_for_image_chunks(tmp_path):
 
     assert llm.last_image_data_url is not None
     assert llm.last_image_data_url.startswith("data:image/png;base64,")
+
+
+def test_llm_extractor_skips_failed_chunk_without_stopping_batch():
+    doc = DocumentInput("demo", "/tmp/demo.md", "", "doc-demo")
+    chunks = [
+        TreeChunk(
+            chunk_id="chunk-1",
+            content="LPDDR5X supports 8533 MT/s.",
+            node_type="text",
+            node_id="n1",
+            parent_id="root",
+            tree_path="root/demo",
+            level=1,
+            metadata={},
+        ),
+        TreeChunk(
+            chunk_id="chunk-2",
+            content="BROKEN ENTITY",
+            node_type="text",
+            node_id="n2",
+            parent_id="root",
+            tree_path="root/broken",
+            level=1,
+            metadata={},
+        ),
+    ]
+
+    nodes, edges = extract_candidates_with_llm(
+        doc,
+        chunks,
+        ontology=default_ontology(),
+        llm_client=FakeLLM(),
+        batch_size=2,
+    )
+
+    assert {node.name for node in nodes} == {"LPDDR5X", "8533 MT/s"}
+    assert any(edge.relation_type == "has_bandwidth" for edge in edges)
+
+
+def test_llm_extractor_filters_ungrounded_text_entities():
+    doc = DocumentInput("demo", "/tmp/demo.md", "", "doc-demo")
+    chunks = [
+        TreeChunk(
+            chunk_id="chunk-1",
+            content="BAD EVIDENCE",
+            node_type="text",
+            node_id="n1",
+            parent_id="root",
+            tree_path="root/demo",
+            level=1,
+            metadata={},
+        )
+    ]
+
+    nodes, edges = extract_candidates_with_llm(
+        doc,
+        chunks,
+        ontology=default_ontology(),
+        llm_client=FakeLLM(),
+    )
+
+    assert nodes == []
+    assert edges == []
+
+
+def test_llm_extractor_keeps_entities_when_relation_stage_fails():
+    doc = DocumentInput("demo", "/tmp/demo.md", "", "doc-demo")
+    chunks = [
+        TreeChunk(
+            chunk_id="chunk-1",
+            content="LPDDR5X supports 8533 MT/s. BROKEN RELATION",
+            node_type="text",
+            node_id="n1",
+            parent_id="root",
+            tree_path="root/demo",
+            level=1,
+            metadata={},
+        )
+    ]
+
+    nodes, edges = extract_candidates_with_llm(
+        doc,
+        chunks,
+        ontology=default_ontology(),
+        llm_client=FakeLLM(),
+    )
+
+    assert {node.name for node in nodes} == {"LPDDR5X", "8533 MT/s"}
+    assert {edge.relation_type for edge in edges} == {"contains"}

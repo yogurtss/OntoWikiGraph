@@ -42,7 +42,8 @@ python -m kg_workbench.build \
 ```
 
 The client reads `OPENAI_API_KEY` and `OPENAI_BASE_URL` by default. You can also
-set `llm.api_key`, `llm.base_url`, and `llm.model` in YAML.
+set `llm.api_key`, `llm.base_url`, and `llm.model` in YAML. `llm.temperature`
+is optional, and `extraction.batch_size` controls concurrent LLM posting.
 
 ## Outputs
 
@@ -58,4 +59,3 @@ Manifest runs also write:
 ```text
 cache/kg_workbench/index.json
 ```
-

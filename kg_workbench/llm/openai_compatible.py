@@ -29,9 +29,10 @@ class OpenAICompatibleClient(BaseLLMClient):
             content = prompt
         payload: dict[str, Any] = {
             "model": self.config.model,
-            "temperature": self.config.temperature,
             "messages": [{"role": "user", "content": content}],
         }
+        if self.config.temperature is not None:
+            payload["temperature"] = self.config.temperature
         timeout = aiohttp.ClientTimeout(total=self.config.timeout)
         headers = {
             "Authorization": f"Bearer {self.api_key}",

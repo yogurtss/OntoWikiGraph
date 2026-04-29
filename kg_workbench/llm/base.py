@@ -9,7 +9,7 @@ class LLMConfig:
     model: str
     api_key: str | None = None
     base_url: str | None = None
-    temperature: float = 0.0
+    temperature: float | None = None
     timeout: float = 120.0
 
 

@@ -35,7 +35,8 @@ def build_document_kg(
     llm_model: str | None = None,
     llm_api_key: str | None = None,
     llm_base_url: str | None = None,
-    llm_temperature: float = 0.0,
+    llm_temperature: float | None = None,
+    llm_batch_size: int = 16,
 ) -> dict[str, Any]:
     working_dir = Path(working_dir)
     ontology = default_ontology()
@@ -75,6 +76,7 @@ def build_document_kg(
             chunks,
             ontology=ontology,
             llm_client=llm_client,
+            batch_size=llm_batch_size,
         )
     else:
         raise ValueError("extractor must be 'heuristic' or 'llm'")
@@ -135,7 +137,8 @@ def build_from_input(
     llm_model: str | None = None,
     llm_api_key: str | None = None,
     llm_base_url: str | None = None,
-    llm_temperature: float = 0.0,
+    llm_temperature: float | None = None,
+    llm_batch_size: int = 16,
 ) -> list[dict[str, Any]]:
     documents = load_documents(input_path)
     results = [
@@ -151,6 +154,7 @@ def build_from_input(
             llm_api_key=llm_api_key,
             llm_base_url=llm_base_url,
             llm_temperature=llm_temperature,
+            llm_batch_size=llm_batch_size,
         )
         for document in documents
     ]
@@ -182,4 +186,5 @@ def build_from_config(config: WorkbenchConfig) -> list[dict[str, Any]]:
         llm_api_key=config.llm_api_key,
         llm_base_url=config.llm_base_url,
         llm_temperature=config.llm_temperature,
+        llm_batch_size=config.llm_batch_size,
     )

@@ -11,6 +11,8 @@ interface GraphCanvasProps {
   filters: GraphFilters;
   layout: LayoutName;
   fitSignal: number;
+  focusNodeId: string | null;
+  focusSignal: number;
   onSelect: (selection: SelectedGraphItem | null) => void;
 }
 
@@ -94,6 +96,12 @@ const cytoscapeStyle: StylesheetJson = [
     },
   },
   {
+    selector: ".hide-label",
+    style: {
+      label: "",
+    },
+  },
+  {
     selector: ".structural-edge",
     style: {
       "line-color": "#a7b2ba",
@@ -136,12 +144,12 @@ const cytoscapeStyle: StylesheetJson = [
   },
 ];
 
-function layoutOptions(layout: LayoutName): LayoutOptions {
+function layoutOptions(layout: LayoutName, disableAnimation: boolean): LayoutOptions {
   if (layout === "breadthfirst") {
     return {
       name: "breadthfirst",
-      animate: true,
-      animationDuration: 420,
+      animate: !disableAnimation,
+      animationDuration: disableAnimation ? 0 : 420,
       directed: true,
       fit: true,
       padding: 48,
@@ -152,8 +160,8 @@ function layoutOptions(layout: LayoutName): LayoutOptions {
   if (layout === "circle") {
     return {
       name: "circle",
-      animate: true,
-      animationDuration: 420,
+      animate: !disableAnimation,
+      animationDuration: disableAnimation ? 0 : 420,
       fit: true,
       padding: 48,
     } as LayoutOptions;
@@ -161,8 +169,8 @@ function layoutOptions(layout: LayoutName): LayoutOptions {
 
   return {
     name: "cose",
-    animate: true,
-    animationDuration: 560,
+    animate: !disableAnimation,
+    animationDuration: disableAnimation ? 0 : 560,
     fit: true,
     idealEdgeLength: 118,
     nodeOverlap: 14,
@@ -171,43 +179,77 @@ function layoutOptions(layout: LayoutName): LayoutOptions {
   } as LayoutOptions;
 }
 
-function clearFocus(cy: Core): void {
+function clearFocus(cy: Core, hideEdgeLabels: boolean): void {
   cy.elements().removeClass("dimmed neighbor selected");
+  if (hideEdgeLabels) {
+    cy.edges().addClass("hide-label");
+  } else {
+    cy.edges().removeClass("hide-label");
+  }
 }
 
-function focusElement(cy: Core, target: cytoscape.SingularElementReturnValue): void {
-  clearFocus(cy);
+function focusElement(cy: Core, target: cytoscape.SingularElementReturnValue, hideEdgeLabels: boolean): void {
+  clearFocus(cy, hideEdgeLabels);
   const neighborhood = target.isNode()
     ? target.closedNeighborhood()
     : (target as EdgeSingular).source().union((target as EdgeSingular).target()).union(target);
   cy.elements().not(neighborhood).addClass("dimmed");
   neighborhood.addClass("neighbor");
+  if (hideEdgeLabels && target.isEdge()) {
+    target.removeClass("hide-label");
+  }
   target.addClass("selected");
 }
 
-export function GraphCanvas({ graph, filters, layout, fitSignal, onSelect }: GraphCanvasProps) {
+function fitGraph(cy: Core, hideAnimation: boolean): void {
+  if (hideAnimation) {
+    cy.fit(cy.elements(), 48);
+    return;
+  }
+  cy.animate({ fit: { eles: cy.elements(), padding: 48 } }, { duration: 280 });
+}
+
+export function GraphCanvas({
+  graph,
+  filters,
+  layout,
+  fitSignal,
+  focusNodeId,
+  focusSignal,
+  onSelect,
+}: GraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cyRef = useRef<Core | null>(null);
   const elements = useMemo(() => buildCytoscapeElements(graph, filters), [graph, filters]);
+  const isLargeGraph = graph.stats.node_count >= 300 || graph.stats.edge_count >= 600;
 
   useEffect(() => {
-    if (!containerRef.current || cyRef.current) {
+    if (!containerRef.current) {
       return;
+    }
+
+    if (cyRef.current) {
+      cyRef.current.destroy();
+      cyRef.current = null;
     }
 
     const cy = cytoscape({
       container: containerRef.current,
       elements: [],
       layout: { name: "preset" },
+      hideEdgesOnViewport: isLargeGraph,
       maxZoom: 2.6,
       minZoom: 0.16,
+      motionBlur: isLargeGraph,
+      pixelRatio: isLargeGraph ? 1 : undefined,
       style: cytoscapeStyle,
+      textureOnViewport: isLargeGraph,
       wheelSensitivity: 0.18,
     });
 
     const handleElementTap = (event: EventObject) => {
       const target = event.target as cytoscape.SingularElementReturnValue;
-      focusElement(cy, target);
+      focusElement(cy, target, isLargeGraph);
       onSelect({
         type: target.isNode() ? "node" : "edge",
         data: target.data(),
@@ -216,7 +258,7 @@ export function GraphCanvas({ graph, filters, layout, fitSignal, onSelect }: Gra
 
     const handleCanvasTap = (event: EventObject) => {
       if (event.target === cy) {
-        clearFocus(cy);
+        clearFocus(cy, isLargeGraph);
         onSelect(null);
       }
     };
@@ -229,7 +271,7 @@ export function GraphCanvas({ graph, filters, layout, fitSignal, onSelect }: Gra
       cy.destroy();
       cyRef.current = null;
     };
-  }, [onSelect]);
+  }, [isLargeGraph, onSelect]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -241,23 +283,48 @@ export function GraphCanvas({ graph, filters, layout, fitSignal, onSelect }: Gra
       cy.elements().remove();
       cy.add(elements);
     });
-    clearFocus(cy);
+    clearFocus(cy, isLargeGraph);
     onSelect(null);
-    cy.layout(layoutOptions(layout)).run();
-  }, [elements, graph.document.document_id, layout, onSelect]);
+  }, [elements, graph.document.document_id, isLargeGraph, onSelect]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) {
+      return;
+    }
+    cy.layout(layoutOptions(layout, isLargeGraph)).run();
+  }, [graph.document.document_id, isLargeGraph, layout]);
 
   useEffect(() => {
     const cy = cyRef.current;
     if (cy && fitSignal > 0) {
-      cy.animate({ fit: { eles: cy.elements(), padding: 48 } }, { duration: 280 });
+      fitGraph(cy, isLargeGraph);
     }
-  }, [fitSignal]);
+  }, [fitSignal, isLargeGraph]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy || !focusNodeId || focusSignal === 0) {
+      return;
+    }
+    const target = cy.getElementById(focusNodeId);
+    if (!target.nonempty()) {
+      return;
+    }
+    focusElement(cy, target, isLargeGraph);
+    onSelect({
+      type: "node",
+      data: target.data(),
+    });
+    fitGraph(cy, isLargeGraph);
+  }, [focusNodeId, focusSignal, isLargeGraph, onSelect]);
 
   return (
     <section className="graph-stage" aria-label="Knowledge graph canvas">
       <div className="canvas-toolbar">
         <span>{elements.filter((element) => element.group === "nodes").length} nodes</span>
         <span>{elements.filter((element) => element.group === "edges").length} edges</span>
+        {isLargeGraph ? <span>大图模式</span> : null}
       </div>
       <div ref={containerRef} className="graph-canvas" />
       {!elements.length ? (

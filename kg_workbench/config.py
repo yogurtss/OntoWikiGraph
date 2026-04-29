@@ -19,7 +19,8 @@ class WorkbenchConfig:
     llm_model: str | None = None
     llm_api_key: str | None = None
     llm_base_url: str | None = None
-    llm_temperature: float = 0.0
+    llm_temperature: float | None = None
+    llm_batch_size: int = 16
 
 
 def _dig(data: dict[str, Any], *path: str, default: Any = None) -> Any:
@@ -29,6 +30,20 @@ def _dig(data: dict[str, Any], *path: str, default: Any = None) -> Any:
             return default
         current = current[key]
     return current
+
+
+def _coerce_optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
+def _coerce_positive_int(value: Any, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
 
 
 def load_config(path: str | Path) -> WorkbenchConfig:
@@ -56,5 +71,9 @@ def load_config(path: str | Path) -> WorkbenchConfig:
         llm_model=_dig(data, "llm", "model", default=data.get("llm_model")),
         llm_api_key=_dig(data, "llm", "api_key", default=data.get("llm_api_key")),
         llm_base_url=_dig(data, "llm", "base_url", default=data.get("llm_base_url")),
-        llm_temperature=float(_dig(data, "llm", "temperature", default=data.get("llm_temperature", 0.0))),
+        llm_temperature=_coerce_optional_float(_dig(data, "llm", "temperature", default=data.get("llm_temperature"))),
+        llm_batch_size=_coerce_positive_int(
+            _dig(data, "extraction", "batch_size", default=data.get("llm_batch_size", 16)),
+            default=16,
+        ),
     )

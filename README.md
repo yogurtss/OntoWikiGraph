@@ -25,6 +25,8 @@ python -m kg_workbench.build \
 ```
 
 The async LLM client reads `OPENAI_API_KEY` and `OPENAI_BASE_URL` by default.
+`llm.temperature` is optional, and `extraction.batch_size` controls concurrent
+LLM posting per chunk batch.
 
 ## Frontend Usage
 
@@ -46,6 +48,14 @@ npm run dev
 
 Open the local Vite URL shown in the terminal, usually `http://localhost:5173`.
 
+The frontend now supports:
+
+- importing a local absolute `index.json` path from the sidebar while running
+  the Vite dev or preview server
+- current-graph node-name search with click-to-focus
+- an automatic large-graph mode that reduces layout and label cost for dense
+  graphs
+
 ### View Real Graph Data
 
 The frontend looks for exported graph files in:
@@ -63,3 +73,8 @@ conda run -n graphgen python -m kg_workbench.frontend_data --working-dir cache/k
 ```
 
 After that, restart or refresh the frontend and it will load the exported graphs.
+
+If you want to inspect a local cache directory directly instead of publishing it
+into `frontend/public/kg`, start the frontend dev server and paste an absolute
+`index.json` path into the sidebar import box, for example
+`/home/.../cache/kg_workbench/index.json`.

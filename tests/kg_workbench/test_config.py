@@ -16,6 +16,7 @@ tree:
   split_text_to_paragraphs: true
 extraction:
   extractor: llm
+  batch_size: 7
 llm:
   model: gpt-test
   base_url: http://localhost:8000/v1
@@ -34,3 +35,21 @@ llm:
     assert config.llm_model == "gpt-test"
     assert config.llm_base_url == "http://localhost:8000/v1"
     assert config.llm_temperature == 0.2
+    assert config.llm_batch_size == 7
+
+
+def test_load_yaml_config_without_temperature(tmp_path: Path):
+    config_path = tmp_path / "kg.yaml"
+    config_path.write_text(
+        """
+input: demo.md
+extraction:
+  extractor: llm
+""",
+        encoding="utf-8",
+    )
+
+    config = load_config(config_path)
+
+    assert config.llm_temperature is None
+    assert config.llm_batch_size == 16
