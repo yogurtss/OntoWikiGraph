@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
+import mimetypes
 import re
+from pathlib import Path
 from typing import Any
 
 from kg_workbench.llm import BaseLLMClient
@@ -53,6 +56,7 @@ Rules:
 - source and target must exactly match extracted entity names.
 - Use concise domain-specific entities. Avoid generic words like "system", "method", "result" unless they denote a concrete technical object.
 - {grounding_note}
+- If an image is provided, use visual evidence from the image itself plus caption/nearby text.
 
 Return schema:
 {{
@@ -72,6 +76,22 @@ Metadata JSON:
 Chunk text:
 {chunk.content}
 """
+
+
+def _image_data_url_from_chunk(chunk: TreeChunk) -> str | None:
+    if chunk.node_type != "image":
+        return None
+    img_path = compact_text(str(chunk.metadata.get("img_path", "")))
+    if not img_path:
+        return None
+    path = Path(img_path)
+    if not path.is_file():
+        return None
+    mime_type, _ = mimetypes.guess_type(path.name)
+    if not mime_type:
+        mime_type = "application/octet-stream"
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
 
 
 def _coerce_confidence(value: Any) -> float:
@@ -95,7 +115,10 @@ async def extract_llm_candidates(
     for chunk in chunks:
         if not compact_text(chunk.content) and chunk.node_type == "text":
             continue
-        response = await llm_client.generate(_prompt_for_chunk(chunk, ontology))
+        response = await llm_client.generate(
+            _prompt_for_chunk(chunk, ontology),
+            image_data_url=_image_data_url_from_chunk(chunk),
+        )
         data = _parse_json_response(response)
         raw_nodes = data.get("nodes", [])
         raw_edges = data.get("edges", [])
@@ -195,4 +218,3 @@ def extract_candidates_with_llm(
             llm_client=llm_client,
         )
     )
-

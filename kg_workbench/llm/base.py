@@ -15,6 +15,5 @@ class LLMConfig:
 
 class BaseLLMClient(ABC):
     @abstractmethod
-    async def generate(self, prompt: str) -> str:
+    async def generate(self, prompt: str, *, image_data_url: str | None = None) -> str:
         raise NotImplementedError
-
