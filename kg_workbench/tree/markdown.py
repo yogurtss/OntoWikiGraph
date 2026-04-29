@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 from kg_workbench.models import Component, DocumentInput
@@ -60,14 +61,29 @@ def _is_image_line(line: str) -> bool:
     )
 
 
-def _extract_image_path(line: str) -> str:
+def _extract_image_path(line: str, md_source_path: str) -> str:
     stripped = (line or "").strip()
     markdown_match = re.match(r"^!\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)", stripped)
     if markdown_match:
-        return markdown_match.group(1)
+        return _resolve_image_path(markdown_match.group(1), md_source_path)
 
     html_match = re.search(r"<img\b[^>]*src=['\"]([^'\"]+)['\"][^>]*>", stripped, re.I)
-    return html_match.group(1) if html_match else ""
+    return _resolve_image_path(html_match.group(1), md_source_path) if html_match else ""
+
+
+def _resolve_image_path(image_path: str, md_source_path: str) -> str:
+    image_path = (image_path or "").strip()
+    if not image_path:
+        return ""
+
+    if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", image_path):
+        return image_path
+
+    image_path_obj = Path(image_path).expanduser()
+    if image_path_obj.is_absolute():
+        return str(image_path_obj)
+
+    return str((Path(md_source_path).resolve().parent / image_path_obj).resolve())
 
 
 def _split_paragraphs(lines: list[str]) -> list[list[str]]:
@@ -244,7 +260,7 @@ def analyze_markdown_structure(doc: DocumentInput) -> list[Component]:
 
         if _is_image_line(line):
             flush_text_buffer()
-            image_path = _extract_image_path(line)
+            image_path = _extract_image_path(line, doc.source_path)
             idx, caption_lines, note_lines = _consume_trailing_image_lines(lines, idx + 1)
             metadata = _normalize_mm_payload(
                 {
