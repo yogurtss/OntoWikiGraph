@@ -71,6 +71,8 @@ def chunk_tree_nodes(
 
     for node in iter_tree(root):
         if node.node_type in {"root", "section"}:
+            if group_text_between_non_text:
+                flush_pending_text()
             continue
         if group_text_between_non_text and node.node_type == "text":
             if node.content:

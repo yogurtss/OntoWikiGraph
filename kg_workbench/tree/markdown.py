@@ -143,15 +143,10 @@ def _build_text_components(
     lines: list[str],
     start_index: int,
 ) -> tuple[list[Component], int]:
-    components = []
-    index = start_index
-    for paragraph in _split_paragraphs(lines):
-        content = compact_text("\n".join(paragraph))
-        if not content:
-            continue
-        components.append(_make_component(doc, "text", title, content, index))
-        index += 1
-    return components, index
+    content = compact_text("\n".join(lines))
+    if not content:
+        return [], start_index
+    return [_make_component(doc, "text", title, content, start_index)], start_index + 1
 
 
 def _split_trailing_paragraph(lines: list[str]) -> tuple[list[str], str]:
